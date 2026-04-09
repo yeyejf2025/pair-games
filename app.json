@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "pairs-game",
+    "slug": "pairs-game",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "main": "index.js",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a1a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a1a"
+      }
+    }
+  }
+}

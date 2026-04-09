@@ -1,0 +1,46 @@
+export const gamesData = {
+  truths: {
+    normal: [
+      "¿Cuál fue tu primer amor?",
+      "¿Cuál es tu mayor miedo?",
+      "¿Qué mentira dijiste más recientemente?",
+      "¿Cuál es tu fantasía secreta?",
+      "¿Qué harías si tuvieras un millón de pesos?",
+      "¿Cuál es tu mayor inseguridad?",
+      "¿Alguna vez fuiste infiel?",
+      "¿Qué es lo que más te gusta de tu pareja?",
+    ],
+    adult: [
+      "¿Cuál es tu fantasía sexual más loca?",
+      "¿Qué parte del cuerpo de tu pareja te atrae más?",
+      "¿Cuántos partners sexuales tuviste?",
+      "¿Dónde fue el lugar más inusual donde...?",
+      "¿Qué es lo más atrevido que hiciste en la intimidad?",
+      "¿Qué te excita más?",
+      "¿Alguna vez fingiste...?",
+      "¿Cuál es tu posición favorita?",
+    ],
+  },
+  dares: {
+    normal: [
+      "Haz un baile gracioso por 30 segundos",
+      "Canta una canción de amor en voz alta",
+      "Dale un masaje en los pies",
+      "Haz 10 flexiones",
+      "Cuéntale un secreto que no había compartido",
+      "Dale un beso en la mejilla",
+      "Imitá a tu celebridad favorita",
+      "Tómate una foto ridícula juntos",
+    ],
+    adult: [
+      "Dale un masaje sensual",
+      "Besa a tu pareja durante 30 segundos",
+      "Dile 3 cosas que te gustaría probar juntos",
+      "Haz un striptease lento",
+      "Tómate una foto provocativa (sin compartir)",
+      "Dale un masaje en lugares específicos",
+      "Susurra una fantasía en su oído",
+      "Baila de forma sensual para tu pareja",
+    ],
+  },
+};
