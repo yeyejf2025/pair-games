@@ -1,76 +1,53 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const { width } = Dimensions.get('window');
-
-export default function HomeScreen({ navigation }) {
-  const [selectedMode, setSelectedMode] = useState(null);
+export default function HomeScreen({ route, navigation }) {
+  const { mode, roomId } = route.params || {};
+  const [lastTalk, setLastTalk] = useState(null);
 
   return (
-    <ImageBackground source={require('../../assets/images/background.png')} style={styles.container} blurRadius={3}>
-      <LinearGradient colors={['rgba(10,10,10,0.8)', 'rgba(26,0,48,0.8)', 'rgba(10,10,10,0.8)']} style={styles.overlay}>
-        
-        <View style={styles.hero}>
-          <Text style={styles.eyebrow}>EL JUEGO PARA</Text>
-          <Text style={styles.title}>PAREJAS</Text>
-          <View style={styles.divider} />
-          <Text style={styles.tagline}>Verdades. Retos. Sin filtros.</Text>
+    <LinearGradient colors={['#0a0a0a', '#1a0030', '#0a0a0a']} style={styles.container}>
+      <View style={styles.content}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.back}>← Volver</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Una pregunta antes</Text>
+        <Text style={styles.question}>¿Cuándo hablaron DE VERDAD?</Text>
+        <View style={styles.options}>
+          {[{key:'today',label:'Hoy 💬'},{key:'week',label:'Esta semana 🤔'},{key:'months',label:'Hace meses 😶'}].map((opt) => (
+            <TouchableOpacity
+              key={opt.key}
+              style={[styles.option, lastTalk === opt.key && styles.optionSelected]}
+              onPress={() => setLastTalk(opt.key)}
+            >
+              <Text style={styles.optionText}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-
-        <View style={styles.cards}>
-          <TouchableOpacity onPress={() => setSelectedMode('normal')} activeOpacity={0.85}>
-            <LinearGradient colors={selectedMode === 'normal' ? ['#4a00e0', '#8e2de2'] : ['#1a1a2e', '#16213e']} style={styles.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Text style={styles.cardEmoji}>😏</Text>
-              <Text style={styles.cardTitle}>NORMAL</Text>
-              <Text style={styles.cardSub}>Para todos</Text>
-            </LinearGradient>
+        {lastTalk && (
+          <TouchableOpacity
+            style={styles.startBtn}
+            onPress={() => navigation.navigate('Choose', { mode, lastTalk, roomId })}
+          >
+            <Text style={styles.startText}>VAMOS →</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => setSelectedMode('adult')} activeOpacity={0.85}>
-            <LinearGradient colors={selectedMode === 'adult' ? ['#c62828', '#ff6f00'] : ['#1a0a0a', '#2d1515']} style={styles.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Text style={styles.cardEmoji}>🔥</Text>
-              <Text style={styles.cardTitle}>+18</Text>
-              <Text style={styles.cardSub}>Solo adultos</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {selectedMode ? (
-          <TouchableOpacity onPress={() => navigation.navigate('Game', { mode: selectedMode })} activeOpacity={0.9}>
-            <LinearGradient colors={['#ff00cc', '#cc00ff']} style={styles.playBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-              <Text style={styles.playText}>JUGAR AHORA  ▶</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.playBtnDisabled}>
-            <Text style={styles.playTextDisabled}>Elegí un modo para jugar</Text>
-          </View>
         )}
-
-        <Text style={styles.footer}>Creada por Yeye  •  v1.0</Text>
-
-      </LinearGradient>
-    </ImageBackground>
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  overlay: { flex: 1, paddingHorizontal: 24, paddingTop: 70, paddingBottom: 30 },
-  hero: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  eyebrow: { color: '#9b59b6', fontSize: 13, letterSpacing: 6, marginBottom: 8 },
-  title: { fontSize: 52, fontWeight: '900', color: '#fff', letterSpacing: 4, textShadowColor: '#cc00ff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 20 },
-  divider: { width: 60, height: 3, backgroundColor: '#cc00ff', borderRadius: 2, marginVertical: 16 },
-  tagline: { color: '#aaa', fontSize: 15, letterSpacing: 2 },
-  cards: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  card: { width: (width - 60) / 2, borderRadius: 20, padding: 24, alignItems: 'center' },
-  cardEmoji: { fontSize: 36, marginBottom: 10 },
-  cardTitle: { color: '#fff', fontWeight: '900', fontSize: 20, letterSpacing: 3 },
-  cardSub: { color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 4 },
-  playBtn: { borderRadius: 50, paddingVertical: 18, alignItems: 'center', marginBottom: 20 },
-  playText: { color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: 4 },
-  playBtnDisabled: { borderRadius: 50, paddingVertical: 18, alignItems: 'center', borderWidth: 1, borderColor: '#333', marginBottom: 20 },
-  playTextDisabled: { color: '#555', fontSize: 14, letterSpacing: 1 },
-  footer: { color: '#444', textAlign: 'center', fontSize: 12, letterSpacing: 1 },
+  content: { flex: 1, padding: 24, justifyContent: 'center' },
+  back: { color: '#666', fontSize: 14, marginBottom: 30 },
+  title: { color: '#9b59b6', fontSize: 13, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 16, textAlign: 'center' },
+  question: { fontSize: 24, fontWeight: '900', color: '#fff', textAlign: 'center', marginBottom: 36, lineHeight: 32 },
+  options: { gap: 12, marginBottom: 36 },
+  option: { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 2, borderColor: '#333', borderRadius: 12, padding: 18, alignItems: 'center' },
+  optionSelected: { borderColor: '#ff00ff', backgroundColor: 'rgba(255,0,255,0.08)' },
+  optionText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  startBtn: { backgroundColor: '#ff00ff', borderRadius: 50, paddingVertical: 18, alignItems: 'center', shadowColor: '#ff00ff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 15 },
+  startText: { color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: 4 },
 });
