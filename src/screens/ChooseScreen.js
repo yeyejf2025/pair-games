@@ -1,154 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { supabase } from '../services/supabase';
 
+const CATEGORIES = [
+  { id: 'hablar', label: '💬 Hablar', color: '#6C63FF' },
+  { id: 'conectar', label: '❤️ Conectar', color: '#FF6584' },
+  { id: 'reir', label: '😂 Reír', color: '#43C59E' },
+];
+
 export default function ChooseScreen({ route, navigation }) {
-  const { roomId } = route.params || {};
-  const [roundId, setRoundId] = useState(null);
-  const [myPlayerId, setMyPlayerId] = useState(null);
+  const { roomId, roundNumber = 1, results = [] } = route.params || {};
   const [myChoice, setMyChoice] = useState(null);
-  const [partnerChoice, setPartnerChoice] = useState(null);
-  const [bothChose, setBothChose] = useState(false);
+  const [player1Choice, setPlayer1Choice] = useState(null);
+  const [player2Choice, setPlayer2Choice] = useState(null);
+  const [myRole, setMyRole] = useState(null);
+  const [roundId, setRoundId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('Preparando ronda...');
+  const intervalRef = useRef(null);
+  const navigatedRef = useRef(false);
 
   useEffect(() => {
-    const initRound = async () => {
-      try {
-        const { data: existingRound } = await supabase
+    initRound();
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const initRound = async () => {
+    try {
+      // Get my role from room
+      const { data: room } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+
+      const role = room?.player2_id ? 'player2' : 'player1';
+      setMyRole(role);
+
+      // Check if round for this round_number already exists
+      const { data: existingRound } = await supabase
+        .from('rounds')
+        .select('*')
+        .eq('room_id', roomId)
+        .eq('round_number', roundNumber)
+        .maybeSingle();
+
+      let rid;
+      if (existingRound) {
+        rid = existingRound.id;
+        setPlayer1Choice(existingRound.player1_choice);
+        setPlayer2Choice(existingRound.player2_choice);
+      } else {
+        // Create new round
+        const { data: newRound, error } = await supabase
           .from('rounds')
-          .select('*')
-          .eq('room_id', roomId)
+          .insert({ room_id: roomId, round_number: roundNumber })
+          .select()
           .single();
 
-        if (existingRound) {
-          setRoundId(existingRound.id);
-          setMyPlayerId('player2');
-        } else {
-          const { data: newRound } = await supabase
+        if (error) {
+          // Race condition: round was just created by partner
+          const { data: retryRound } = await supabase
             .from('rounds')
-            .insert([{ room_id: roomId, player1_choice: null, player2_choice: null }])
-            .select()
-            .single();
-          setRoundId(newRound.id);
-          setMyPlayerId('player1');
+            .select('*')
+            .eq('room_id', roomId)
+            .eq('round_number', roundNumber)
+            .maybeSingle();
+          rid = retryRound?.id;
+        } else {
+          rid = newRound.id;
         }
-      } catch (err) {
-        console.error('Error init round:', err);
       }
-    };
-    initRound();
-  }, [roomId]);
 
-  useEffect(() => {
-    if (!roundId || !myPlayerId) return;
+      setRoundId(rid);
+      setLoading(false);
+      setStatus('Elegí una categoría');
 
-    const channel = supabase
-      .channel(`round-${roundId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'rounds',
-          filter: `id=eq.${roundId}`,
-        },
-        (payload) => {
-          const updated = payload.new;
-          if (myPlayerId === 'player1') {
-            setMyChoice(updated.player1_choice);
-            setPartnerChoice(updated.player2_choice);
-          } else {
-            setMyChoice(updated.player2_choice);
-            setPartnerChoice(updated.player1_choice);
-          }
-          if (updated.player1_choice && updated.player2_choice) {
-            setBothChose(true);
-          }
-        }
-      )
-      .subscribe();
-
-    setLoading(false);
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [roundId, myPlayerId]);
-
-  const handleChoose = async (choice) => {
-    if (!roundId || myChoice) return;
-    try {
-      const updates = myPlayerId === 'player1' ? { player1_choice: choice } : { player2_choice: choice };
-      await supabase.from('rounds').update(updates).eq('id', roundId);
-      setMyChoice(choice);
-    } catch (err) {
-      console.error('Error choosing:', err);
+      // Start polling
+      intervalRef.current = setInterval(() => pollRound(rid), 1500);
+    } catch (e) {
+      console.error('initRound error:', e);
+      setLoading(false);
     }
   };
 
-  const getCategoryEmoji = (cat) => {
-    return cat === 'talk' ? '🗣️' : cat === 'connect' ? '🔥' : '😂';
+  const pollRound = async (rid) => {
+    if (!rid || navigatedRef.current) return;
+    try {
+      const { data } = await supabase
+        .from('rounds')
+        .select('*')
+        .eq('id', rid)
+        .single();
+
+      if (data) {
+        setPlayer1Choice(data.player1_choice);
+        setPlayer2Choice(data.player2_choice);
+      }
+    } catch (e) {
+      console.error('poll error:', e);
+    }
   };
 
-  const getCategoryName = (cat) => {
-    return cat === 'talk' ? 'Hablar' : cat === 'connect' ? 'Conectar' : 'Reír';
+  useEffect(() => {
+    if (!roundId || navigatedRef.current) return;
+    if (player1Choice && player2Choice) {
+      navigatedRef.current = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+
+      const yourChoice = myRole === 'player1' ? player1Choice : player2Choice;
+      const partnerChoice = myRole === 'player1' ? player2Choice : player1Choice;
+
+      setTimeout(() => {
+        navigation.navigate('Question', {
+          roomId,
+          yourChoice,
+          partnerChoice,
+          roundNumber,
+          results,
+        });
+      }, 800);
+    }
+  }, [player1Choice, player2Choice, roundId]);
+
+  const handleChoose = async (categoryId) => {
+    if (myChoice || !roundId) return;
+    setMyChoice(categoryId);
+    setStatus('Esperando a tu pareja...');
+
+    const field = myRole === 'player1' ? 'player1_choice' : 'player2_choice';
+    await supabase
+      .from('rounds')
+      .update({ [field]: categoryId })
+      .eq('id', roundId);
   };
 
   if (loading) {
     return (
-      <LinearGradient colors={['#0a0a0a', '#1a0030', '#0a0a0a']} style={styles.container}>
-        <ActivityIndicator size='large' color='#ff00ff' />
-      </LinearGradient>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#6C63FF" />
+        <Text style={styles.loadingText}>Preparando ronda {roundNumber}...</Text>
+      </View>
     );
   }
 
-  const didMatch = myChoice && partnerChoice && myChoice === partnerChoice;
-
   return (
-    <LinearGradient colors={['#0a0a0a', '#1a0030', '#0a0a0a']} style={styles.container}>
-      {bothChose ? (
-        <View style={styles.result}>
-          <Text style={styles.resultTitle}>{didMatch ? '✅ COINCIDIERON' : '❌ NO COINCIDIERON'}</Text>
-          <Text style={styles.resultSub}>
-            {didMatch ? 'Sus respuestas van juntas 🔥' : 'Uno quería ' + getCategoryName(myChoice) + ' y otro ' + getCategoryName(partnerChoice)}
-          </Text>
-          <TouchableOpacity style={styles.nextBtn} onPress={() => navigation.navigate('Question', { yourChoice: myChoice, partnerChoice })}>
-            <Text style={styles.nextText}>Siguiente Pregunta →</Text>
+    <View style={styles.container}>
+      <Text style={styles.roundLabel}>RONDA {roundNumber} DE 5</Text>
+      <Text style={styles.title}>Elegí una categoría</Text>
+      <Text style={styles.subtitle}>Tu pareja elige al mismo tiempo, sin verse</Text>
+
+      <View style={styles.categories}>
+        {CATEGORIES.map((cat) => (
+          <TouchableOpacity
+            key={cat.id}
+            style={[
+              styles.categoryBtn,
+              { borderColor: cat.color },
+              myChoice === cat.id && { backgroundColor: cat.color },
+            ]}
+            onPress={() => handleChoose(cat.id)}
+            disabled={!!myChoice}
+          >
+            <Text style={[styles.categoryText, myChoice === cat.id && { color: '#fff' }]}>
+              {cat.label}
+            </Text>
           </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.status}>{status}</Text>
+
+      {myChoice && (
+        <View style={styles.waitingContainer}>
+          <ActivityIndicator size="small" color="#6C63FF" />
+          <Text style={styles.waitingText}>Esperando a tu pareja...</Text>
         </View>
-      ) : (
-        <>
-          <Text style={styles.label}>{myChoice ? '💭 ' + getCategoryName(myChoice) + ' ✓' : '💭 Vos elegís primero'}</Text>
-          <Text style={styles.subtitle}>{partnerChoice ? '⏳ Tu pareja ya eligió' : '(Sin verse la opción)'}</Text>
-          <View style={styles.choices}>
-            {['talk', 'connect', 'laugh'].map((cat) => (
-              <TouchableOpacity key={cat} style={[styles.choice, myChoice === cat && styles.choiceSelected, myChoice && myChoice !== cat && styles.choiceDisabled]} onPress={() => handleChoose(cat)} disabled={!!myChoice}>
-                <Text style={styles.choiceEmoji}>{getCategoryEmoji(cat)}</Text>
-                <Text style={styles.choiceName}>{getCategoryName(cat)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {partnerChoice && !myChoice && <Text style={styles.waiting}>⏳ Tu pareja eligió... ahora vos</Text>}
-        </>
       )}
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
-  label: { fontSize: 20, fontWeight: '900', color: '#fff', textAlign: 'center', marginBottom: 8 },
-  subtitle: { color: '#888', textAlign: 'center', marginBottom: 40, fontSize: 14 },
-  choices: { gap: 16, marginBottom: 40 },
-  choice: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 2, borderColor: '#333' },
-  choiceSelected: { borderColor: '#ff00ff', backgroundColor: 'rgba(255,0,255,0.1)' },
-  choiceDisabled: { opacity: 0.4 },
-  choiceEmoji: { fontSize: 40, marginBottom: 12 },
-  choiceName: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  waiting: { color: '#9b59b6', textAlign: 'center', fontSize: 14, fontStyle: 'italic' },
-  result: { alignItems: 'center' },
-  resultTitle: { fontSize: 32, fontWeight: '900', color: '#fff', marginBottom: 12 },
-  resultSub: { color: '#aaa', fontSize: 14, marginBottom: 30, textAlign: 'center' },
-  nextBtn: { backgroundColor: '#ff00ff', borderRadius: 50, paddingVertical: 16, paddingHorizontal: 40 },
-  nextText: { color: '#fff', fontWeight: '900', letterSpacing: 2 },
+  container: { flex: 1, backgroundColor: '#0D0D1A', padding: 24, justifyContent: 'center' },
+  center: { flex: 1, backgroundColor: '#0D0D1A', justifyContent: 'center', alignItems: 'center' },
+  roundLabel: { color: '#6C63FF', fontSize: 13, fontWeight: '700', textAlign: 'center', letterSpacing: 2, marginBottom: 8 },
+  title: { color: '#fff', fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
+  subtitle: { color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 40 },
+  categories: { gap: 16 },
+  categoryBtn: {
+    borderWidth: 2, borderRadius: 16, padding: 20,
+    alignItems: 'center',
+  },
+  categoryText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  status: { color: '#888', textAlign: 'center', marginTop: 32, fontSize: 14 },
+  waitingContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, gap: 8 },
+  waitingText: { color: '#6C63FF', fontSize: 14 },
+  loadingText: { color: '#888', marginTop: 16, fontSize: 14 },
 });

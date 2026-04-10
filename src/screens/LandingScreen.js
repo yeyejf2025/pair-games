@@ -1,25 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ImageBackground } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { supabase } from '../services/supabase';
 
 const { width } = Dimensions.get('window');
 
-export default function LandingScreen({ navigation }) {
+export default function LandingScreen({ route, navigation }) {
+  const { roomId } = route.params || {};
   const [mode, setMode] = useState(null);
 
-  const handleStartGame = async (selectedMode) => {
-    const code = 'PUENTE-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-    try {
-      const { data, error } = await supabase
-        .from('rooms')
-        .insert([{ code: code, player1_id: 'player1', status: 'waiting' }])
-        .select();
-      if (error) throw error;
-      navigation.navigate('Home', { mode: selectedMode, roomId: data[0].id, code: code });
-    } catch (err) {
-      console.error(err);
-    }
+  const handleStartGame = (selectedMode) => {
+    // USA EL ROOMID QUE VIENE DE AUTHSCREEN, no crea uno nuevo
+    navigation.navigate('Home', { mode: selectedMode, roomId: roomId });
   };
 
   return (
